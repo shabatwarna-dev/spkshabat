@@ -13,16 +13,18 @@ class ProductionOrder extends Model
         'nomor_spk', 'tanggal_pesan', 'tanggal_produksi',
         'tanggal_selesai_estimasi', 'tanggal_selesai_aktual',
         'tanggal_kirim', 'nama_customer', 'nama_barang',
-        'keterangan', 'status', 'created_by',
+        'keterangan', 'status', 'team_id', 'created_by',
     ];
 
     protected $casts = [
-        'tanggal_pesan' => 'date',
-        'tanggal_produksi' => 'date',
+        'tanggal_pesan'            => 'date',
+        'tanggal_produksi'         => 'date',
         'tanggal_selesai_estimasi' => 'date',
-        'tanggal_selesai_aktual' => 'date',
-        'tanggal_kirim' => 'date',
+        'tanggal_selesai_aktual'   => 'date',
+        'tanggal_kirim'            => 'date',
     ];
+
+    // ── Relations ─────────────────────────────────────────────
 
     public function processes()
     {
@@ -34,17 +36,12 @@ class ProductionOrder extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function getStatusBadgeAttribute(): string
+    public function team()
     {
-        return match($this->status) {
-            'draft'    => 'badge-warning',
-            'produksi' => 'badge-info',
-            'selesai'  => 'badge-success',
-            'kirim'    => 'badge-primary',
-            'batal'    => 'badge-danger',
-            default    => 'badge-secondary',
-        };
+        return $this->belongsTo(Team::class);
     }
+
+    // ── Accessors ─────────────────────────────────────────────
 
     public function getStatusLabelAttribute(): string
     {
@@ -54,7 +51,7 @@ class ProductionOrder extends Model
             'selesai'  => 'Selesai',
             'kirim'    => 'Dikirim',
             'batal'    => 'Dibatalkan',
-            default    => 'Unknown',
+            default    => ucfirst($this->status),
         };
     }
 
@@ -71,14 +68,42 @@ class ProductionOrder extends Model
         return $this->processes->contains('status', 'telat');
     }
 
-    // Auto-generate SPK number
-    public static function generateNomorSPK(): string
+    // ── Scopes ────────────────────────────────────────────────
+
+    /**
+     * Filter SPK berdasarkan tim user.
+     * Master admin tidak difilter — lihat semua.
+     * PPIC & Koor hanya lihat SPK dari tim mereka.
+     */
+    public function scopeForUser($query, User $user)
     {
-        $year = now()->format('Y');
-        $month = now()->format('m');
-        $last = static::whereYear('created_at', $year)
-                       ->whereMonth('created_at', $month)
-                       ->count() + 1;
-        return 'SPK-' . $year . $month . '-' . str_pad($last, 4, '0', STR_PAD_LEFT);
+        if ($user->isMasterAdmin()) {
+            return $query;
+        }
+
+        $teamIds = $user->teamIds();
+
+        if (empty($teamIds)) {
+            // User tidak punya tim — tidak bisa lihat apapun
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->whereIn('team_id', $teamIds);
+    }
+
+    // ── Static ────────────────────────────────────────────────
+
+    public static function generateNomorSPK(Team $team): string
+    {
+        $year   = now()->format('Y');
+        $month  = now()->format('m');
+        // Ambil 3 huruf pertama nama tim, uppercase
+        $prefix = strtoupper(substr(preg_replace('/[^a-zA-Z]/', '', $team->name), 0, 3));
+        $last   = static::whereYear('created_at', $year)
+                        ->whereMonth('created_at', $month)
+                        ->where('team_id', $team->id)
+                        ->count() + 1;
+
+        return 'SPK-' . $prefix . '-' . $year . $month . '-' . str_pad($last, 4, '0', STR_PAD_LEFT);
     }
 }

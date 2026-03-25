@@ -3,84 +3,112 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Models\Team;
 use App\Models\ProductionOrder;
-use App\Models\ProductionProcess;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
-use Carbon\Carbon;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        // Create users
-        $marketing = User::create([
-            'name' => 'Admin Marketing',
-            'email' => 'marketing@printflow.com',
-            'password' => Hash::make('password'),
-            'role' => 'marketing',
-        ]);
+        // ── Teams ─────────────────────────────────────────────
+        $teamDigital = Team::firstOrCreate(
+            ['name' => 'Tim Digital'],
+            ['jalur' => 'digital', 'warna' => '#3b82f6', 'keterangan' => 'Tim produksi jalur digital']
+        );
 
-        $produksi = User::create([
-            'name' => 'Admin Produksi',
-            'email' => 'produksi@printflow.com',
-            'password' => Hash::make('password'),
-            'role' => 'produksi',
-        ]);
+        $teamOffset = Team::firstOrCreate(
+            ['name' => 'Tim Offset'],
+            ['jalur' => 'offset', 'warna' => '#f59e0b', 'keterangan' => 'Tim produksi jalur offset']
+        );
 
-        // Create sample SPK
-        $spk1 = ProductionOrder::create([
-            'nomor_spk' => 'SPK-202603-0001',
-            'tanggal_pesan' => '2026-03-01',
-            'tanggal_produksi' => '2026-03-03',
-            'tanggal_selesai_estimasi' => '2026-03-15',
-            'tanggal_kirim' => '2026-03-17',
-            'nama_customer' => 'PT. Maju Jaya Abadi',
-            'nama_barang' => 'Label Botol Shampoo Premium',
-            'keterangan' => 'Full color, laminasi glossy. Urgent!',
-            'status' => 'produksi',
-            'created_by' => $marketing->id,
-        ]);
+        // ── Users ─────────────────────────────────────────────
+        $masterAdmin = User::firstOrCreate(
+            ['email' => 'admin@spkshabat.com'],
+            ['name' => 'Master Admin', 'password' => Hash::make('password'), 'role' => 'master_admin']
+        );
 
-        $processes1 = [
-            ['nama_proses'=>'Design', 'urutan'=>1, 'estimasi_selesai'=>'2026-03-03', 'jumlah_barang'=>1, 'montage'=>'1 Mata', 'ukuran'=>'36x63 cm', 'warna'=>'4 warna', 'estimasi_hasil'=>1, 'satuan'=>'file', 'status'=>'selesai', 'hasil_jadi'=>1, 'tanggal_selesai_aktual'=>'2026-03-03'],
-            ['nama_proses'=>'Plat', 'urutan'=>2, 'estimasi_selesai'=>'2026-03-04', 'jumlah_barang'=>4, 'montage'=>'4 Mata', 'ukuran'=>'36x63 cm', 'warna'=>'4 warna', 'estimasi_hasil'=>4, 'satuan'=>'pcs', 'status'=>'selesai', 'hasil_jadi'=>4, 'tanggal_selesai_aktual'=>'2026-03-04'],
-            ['nama_proses'=>'Cetak', 'urutan'=>3, 'estimasi_selesai'=>'2026-03-07', 'jumlah_barang'=>3443, 'montage'=>'3 Mata', 'ukuran'=>'36x63 cm', 'warna'=>'4 warna', 'estimasi_hasil'=>10299, 'satuan'=>'lembar', 'status'=>'selesai', 'hasil_jadi'=>10280, 'jumlah_reject'=>19, 'tanggal_selesai_aktual'=>'2026-03-08', 'catatan_produksi'=>'Ada 19 lembar reject warna kurang tajam'],
-            ['nama_proses'=>'Laminasi', 'urutan'=>4, 'estimasi_selesai'=>'2026-03-09', 'jumlah_barang'=>10280, 'montage'=>'1 Mata', 'ukuran'=>'36x63 cm', 'warna'=>'-', 'estimasi_hasil'=>10280, 'satuan'=>'lembar', 'status'=>'telat', 'catatan_marketing'=>'Laminasi glossy premium'],
-            ['nama_proses'=>'Punch', 'urutan'=>5, 'estimasi_selesai'=>'2026-03-11', 'jumlah_barang'=>10280, 'montage'=>'1 Mata', 'ukuran'=>'36x63 cm', 'warna'=>'-', 'estimasi_hasil'=>10280, 'satuan'=>'pcs', 'status'=>'pending'],
-            ['nama_proses'=>'Sortir', 'urutan'=>6, 'estimasi_selesai'=>'2026-03-12', 'jumlah_barang'=>10280, 'montage'=>'-', 'ukuran'=>'-', 'warna'=>'-', 'estimasi_hasil'=>10000, 'satuan'=>'pcs', 'status'=>'pending'],
-            ['nama_proses'=>'Packing', 'urutan'=>7, 'estimasi_selesai'=>'2026-03-13', 'jumlah_barang'=>10000, 'montage'=>'-', 'ukuran'=>'-', 'warna'=>'-', 'estimasi_hasil'=>200, 'satuan'=>'paket', 'status'=>'pending', 'catatan_marketing'=>'50 pcs per pack, 200 pack total'],
-        ];
+        $ppicDigital = User::firstOrCreate(
+            ['email' => 'ppic.digital@spkshabat.com'],
+            ['name' => 'PPIC Digital', 'password' => Hash::make('password'), 'role' => 'ppic']
+        );
 
-        foreach ($processes1 as $p) {
-            $spk1->processes()->create($p);
+        $koorDigital = User::firstOrCreate(
+            ['email' => 'koor.digital@spkshabat.com'],
+            ['name' => 'Koor Digital', 'password' => Hash::make('password'), 'role' => 'koor']
+        );
+
+        $ppicOffset = User::firstOrCreate(
+            ['email' => 'ppic.offset@spkshabat.com'],
+            ['name' => 'PPIC Offset', 'password' => Hash::make('password'), 'role' => 'ppic']
+        );
+
+        $koorOffset = User::firstOrCreate(
+            ['email' => 'koor.offset@spkshabat.com'],
+            ['name' => 'Koor Offset', 'password' => Hash::make('password'), 'role' => 'koor']
+        );
+
+        // ── Assign users ke tim ───────────────────────────────
+        $teamDigital->users()->syncWithoutDetaching([$ppicDigital->id, $koorDigital->id]);
+        $teamOffset->users()->syncWithoutDetaching([$ppicOffset->id, $koorOffset->id]);
+
+        // ── Sample SPK Digital ────────────────────────────────
+        $orderDigital = ProductionOrder::firstOrCreate(
+            ['nomor_spk' => 'SPK-TIM-202601-0001'],
+            [
+                'tanggal_pesan'            => now(),
+                'tanggal_produksi'         => now(),
+                'tanggal_selesai_estimasi' => now()->addDays(7),
+                'tanggal_kirim'            => now()->addDays(8),
+                'nama_customer'            => 'PT. Digital Prima',
+                'nama_barang'              => 'Brosur Digital A4',
+                'status'                   => 'produksi',
+                'team_id'                  => $teamDigital->id,
+                'created_by'               => $ppicDigital->id,
+            ]
+        );
+
+        if ($orderDigital->processes->count() === 0) {
+            foreach (['Design', 'Cetak', 'Laminasi', 'Packing'] as $i => $nama) {
+                $orderDigital->processes()->create([
+                    'nama_proses'      => $nama,
+                    'urutan'           => $i + 1,
+                    'estimasi_selesai' => now()->addDays($i + 1),
+                    'jumlah_barang'    => 1000,
+                    'satuan'           => 'pcs',
+                    'status'           => 'pending',
+                ]);
+            }
         }
 
-        // Second SPK
-        $spk2 = ProductionOrder::create([
-            'nomor_spk' => 'SPK-202603-0002',
-            'tanggal_pesan' => '2026-03-05',
-            'tanggal_produksi' => '2026-03-07',
-            'tanggal_selesai_estimasi' => '2026-03-20',
-            'tanggal_kirim' => '2026-03-22',
-            'nama_customer' => 'CV. Berkah Sejahtera',
-            'nama_barang' => 'Dus Makanan Ringan',
-            'keterangan' => 'Pisau punch baru, koordinasi dengan bagian punch',
-            'status' => 'produksi',
-            'created_by' => $marketing->id,
-        ]);
+        // ── Sample SPK Offset ─────────────────────────────────
+        $orderOffset = ProductionOrder::firstOrCreate(
+            ['nomor_spk' => 'SPK-TIM-202601-0002'],
+            [
+                'tanggal_pesan'            => now(),
+                'tanggal_produksi'         => now(),
+                'tanggal_selesai_estimasi' => now()->addDays(7),
+                'tanggal_kirim'            => now()->addDays(8),
+                'nama_customer'            => 'CV. Offset Jaya',
+                'nama_barang'              => 'Label Botol Offset',
+                'status'                   => 'produksi',
+                'team_id'                  => $teamOffset->id,
+                'created_by'               => $ppicOffset->id,
+            ]
+        );
 
-        $processes2 = [
-            ['nama_proses'=>'Design', 'urutan'=>1, 'estimasi_selesai'=>'2026-03-07', 'jumlah_barang'=>1, 'montage'=>'2 Mata', 'ukuran'=>'50x70 cm', 'warna'=>'5 warna', 'estimasi_hasil'=>1, 'satuan'=>'file', 'status'=>'selesai', 'hasil_jadi'=>1, 'tanggal_selesai_aktual'=>'2026-03-07'],
-            ['nama_proses'=>'Pisau Punch', 'urutan'=>2, 'estimasi_selesai'=>'2026-03-09', 'jumlah_barang'=>1, 'montage'=>'2 Mata', 'ukuran'=>'50x70 cm', 'warna'=>'-', 'estimasi_hasil'=>1, 'satuan'=>'set', 'status'=>'proses'],
-            ['nama_proses'=>'Potong Bahan', 'urutan'=>3, 'estimasi_selesai'=>'2026-03-10', 'jumlah_barang'=>5000, 'montage'=>'2 Mata', 'ukuran'=>'50x70 cm', 'warna'=>'-', 'estimasi_hasil'=>2500, 'satuan'=>'lembar', 'status'=>'pending'],
-            ['nama_proses'=>'Cetak', 'urutan'=>4, 'estimasi_selesai'=>'2026-03-14', 'jumlah_barang'=>2500, 'montage'=>'2 Mata', 'ukuran'=>'50x70 cm', 'warna'=>'5 warna', 'estimasi_hasil'=>5000, 'satuan'=>'lembar', 'status'=>'pending'],
-            ['nama_proses'=>'Dedel', 'urutan'=>5, 'estimasi_selesai'=>'2026-03-17', 'jumlah_barang'=>5000, 'montage'=>'-', 'ukuran'=>'-', 'warna'=>'-', 'estimasi_hasil'=>5000, 'satuan'=>'pcs', 'status'=>'pending'],
-            ['nama_proses'=>'Packing', 'urutan'=>6, 'estimasi_selesai'=>'2026-03-19', 'jumlah_barang'=>5000, 'montage'=>'-', 'ukuran'=>'-', 'warna'=>'-', 'estimasi_hasil'=>100, 'satuan'=>'paket', 'status'=>'pending', 'catatan_marketing'=>'50 pcs per pack'],
-        ];
-
-        foreach ($processes2 as $p) {
-            $spk2->processes()->create($p);
+        if ($orderOffset->processes->count() === 0) {
+            foreach (['Plat', 'Cetak', 'Punch', 'Packing'] as $i => $nama) {
+                $orderOffset->processes()->create([
+                    'nama_proses'      => $nama,
+                    'urutan'           => $i + 1,
+                    'estimasi_selesai' => now()->addDays($i + 1),
+                    'jumlah_barang'    => 5000,
+                    'satuan'           => 'pcs',
+                    'status'           => 'pending',
+                ]);
+            }
         }
     }
 }
