@@ -29,35 +29,35 @@ class DatabaseSeeder extends Seeder
         // Users
         $admin = User::create([
             'name' => 'Master Admin',
-            'email' => 'admin@spkshabat.com',
+            'email' => 'admin@shabat.com',
             'password' => bcrypt('password'),
             'role' => 'master_admin'
         ]);
 
         $ppicDigital = User::create([
             'name' => 'PPIC Digital',
-            'email' => 'ppic.digital@spkshabat.com',
+            'email' => 'ppicdigital@shabat.com',
             'password' => bcrypt('password'),
             'role' => 'ppic'
         ]);
 
         $koorDigital = User::create([
             'name' => 'Koor Digital',
-            'email' => 'koor.digital@spkshabat.com',
+            'email' => 'koordigital@shabat.com',
             'password' => bcrypt('password'),
             'role' => 'koor'
         ]);
 
         $ppicOffset = User::create([
             'name' => 'PPIC Offset',
-            'email' => 'ppic.offset@spkshabat.com',
+            'email' => 'ppicoffset@shabat.com',
             'password' => bcrypt('password'),
             'role' => 'ppic'
         ]);
 
         $koorOffset = User::create([
             'name' => 'Koor Offset',
-            'email' => 'koor.offset@spkshabat.com',
+            'email' => 'kooroffset@shabat.com',
             'password' => bcrypt('password'),
             'role' => 'koor'
         ]);
