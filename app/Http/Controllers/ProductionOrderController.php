@@ -196,6 +196,9 @@ class ProductionOrderController extends Controller
     {
         $user = auth()->user();
 
+        // Master admin bisa lihat semua SPK
+        if ($user->isMasterAdmin()) return;
+
         if (!$user->canAccessTeam($order->team_id)) {
             abort(403, 'Kamu tidak memiliki akses ke SPK ini.');
         }

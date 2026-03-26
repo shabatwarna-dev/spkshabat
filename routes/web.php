@@ -17,10 +17,10 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // ── Protected ─────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
 
-    // Dashboard
+    // Dashboard — semua role
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
-    // SPK (semua role, data difilter per tim di controller)
+    // Daftar & detail SPK — semua role bisa lihat
     Route::get('/spk', [ProductionOrderController::class, 'index'])->name('orders.index');
     Route::get('/spk/riwayat', [ProductionOrderController::class, 'history'])->name('orders.history');
 
@@ -39,22 +39,22 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/proses/{process}', [ProductionProcessController::class, 'destroy'])->name('processes.destroy');
     });
 
-    // Wildcard setelah route statis
+    // Wildcard — setelah route statis
     Route::get('/spk/{order}', [ProductionOrderController::class, 'show'])->name('orders.show');
     Route::get('/spk/{order}/pdf', [ProductionOrderController::class, 'exportPdf'])->name('orders.pdf');
 
-    // Koor only — input hasil produksi
+    // Koor only — input hasil
     Route::middleware(['role:koor'])->group(function () {
         Route::put('/proses/{process}/produksi', [ProductionProcessController::class, 'updateProduksi'])->name('processes.updateProduksi');
     });
 
-    // Laporan (ppic & koor lihat laporan tim sendiri)
-    Route::get('/laporan', [ReportController::class, 'index'])->name('reports.index');
+    // Laporan — ppic & koor saja
+    Route::middleware(['role:ppic,koor'])->group(function () {
+        Route::get('/laporan', [ReportController::class, 'index'])->name('reports.index');
+    });
 
     // ── Master Admin only ──────────────────────────────────────
     Route::middleware(['role:master_admin'])->prefix('admin')->name('admin.')->group(function () {
-
-        // Kelola Users
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::get('/users/buat', [UserController::class, 'create'])->name('users.create');
         Route::post('/users', [UserController::class, 'store'])->name('users.store');
@@ -62,26 +62,20 @@ Route::middleware(['auth'])->group(function () {
         Route::put('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
 
-        // Kelola Teams
         Route::get('/teams', [TeamController::class, 'index'])->name('teams.index');
         Route::get('/teams/buat', [TeamController::class, 'create'])->name('teams.create');
         Route::post('/teams', [TeamController::class, 'store'])->name('teams.store');
         Route::get('/teams/{team}/edit', [TeamController::class, 'edit'])->name('teams.edit');
         Route::put('/teams/{team}', [TeamController::class, 'update'])->name('teams.update');
         Route::delete('/teams/{team}', [TeamController::class, 'destroy'])->name('teams.destroy');
-
-        // Laporan semua jalur
-        Route::get('/laporan', [ReportController::class, 'adminIndex'])->name('reports.index');
     });
 });
 
-// Storage fallback untuk local development (Apache Windows)
+// Storage fallback untuk local development
 if (app()->environment('local')) {
     Route::get('/storage/{path}', function (string $path) {
         $fullPath = storage_path('app/public/' . $path);
         if (!file_exists($fullPath)) abort(404);
-        return response()->file($fullPath, [
-            'Content-Type' => mime_content_type($fullPath),
-        ]);
+        return response()->file($fullPath, ['Content-Type' => mime_content_type($fullPath)]);
     })->where('path', '.*');
 }

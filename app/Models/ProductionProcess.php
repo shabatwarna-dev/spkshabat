@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
 
 class ProductionProcess extends Model
 {
+    use HasFactory;
     protected $fillable = [
         'production_order_id', 'nama_proses', 'urutan',
         'estimasi_selesai', 'jumlah_barang', 'montage',
