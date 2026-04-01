@@ -68,7 +68,7 @@ class DatabaseSeeder extends Seeder
 
         // Orders
         ProductionOrder::factory()
-            ->count(50)
+            ->count(5)
             ->hasProcesses(4)
             ->create([
                 'team_id' => $teamDigital->id,
@@ -76,7 +76,7 @@ class DatabaseSeeder extends Seeder
             ]);
 
         ProductionOrder::factory()
-            ->count(50)
+            ->count(5)
             ->hasProcesses(4)
             ->create([
                 'team_id' => $teamOffset->id,
