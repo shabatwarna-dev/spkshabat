@@ -45,19 +45,21 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users',
-            'password' => ['required', Password::min(8)],
-            'role'     => 'required|in:master_admin,ppic,koor',
-            'team_ids' => 'nullable|array',
-            'team_ids.*' => 'exists:teams,id',
+            'name'        => 'required|string|max:255',
+            'email'       => 'required|email|unique:users',
+            'password'    => ['required', Password::min(8)],
+            'role'        => 'required|in:master_admin,ppic,koor,operator',
+            'nama_proses' => 'nullable|string|max:255',
+            'team_ids'    => 'nullable|array',
+            'team_ids.*'  => 'exists:teams,id',
         ]);
 
         $user = User::create([
-            'name'     => $validated['name'],
-            'email'    => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role'     => $validated['role'],
+            'name'        => $validated['name'],
+            'email'       => $validated['email'],
+            'password'    => Hash::make($validated['password']),
+            'role'        => $validated['role'],
+            'nama_proses' => $validated['role'] === 'operator' ? $validated['nama_proses'] : null,
         ]);
 
         // Assign ke tim (master_admin tidak perlu tim)
@@ -78,20 +80,22 @@ class UserController extends Controller
     public function update(Request $request, User $user)
     {
         $validated = $request->validate([
-            'name'     => 'required|string|max:255',
-            'email'    => 'required|email|unique:users,email,' . $user->id,
-            'password' => ['nullable', Password::min(8)],
-            'role'     => 'required|in:master_admin,ppic,koor',
-            'team_ids' => 'nullable|array',
-            'team_ids.*' => 'exists:teams,id',
-            'is_active' => 'boolean',
+            'name'        => 'required|string|max:255',
+            'email'       => 'required|email|unique:users,email,' . $user->id,
+            'password'    => ['nullable', Password::min(8)],
+            'role'        => 'required|in:master_admin,ppic,koor,operator',
+            'nama_proses' => 'nullable|string|max:255',
+            'team_ids'    => 'nullable|array',
+            'team_ids.*'  => 'exists:teams,id',
+            'is_active'   => 'boolean',
         ]);
 
         $data = [
-            'name'      => $validated['name'],
-            'email'     => $validated['email'],
-            'role'      => $validated['role'],
-            'is_active' => $request->boolean('is_active', true),
+            'name'        => $validated['name'],
+            'email'       => $validated['email'],
+            'role'        => $validated['role'],
+            'nama_proses' => $validated['role'] === 'operator' ? $validated['nama_proses'] : null,
+            'is_active'   => $request->boolean('is_active', true),
         ];
 
         if (!empty($validated['password'])) {

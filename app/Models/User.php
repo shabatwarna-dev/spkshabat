@@ -11,12 +11,10 @@ class User extends Authenticatable
     use HasFactory, Notifiable;
 
     protected $fillable = [
-        'name', 'email', 'password', 'role', 'is_active',
+        'name', 'email', 'password', 'role', 'nama_proses', 'is_active',
     ];
 
-    protected $hidden = [
-        'password', 'remember_token',
-    ];
+    protected $hidden = ['password', 'remember_token'];
 
     protected function casts(): array
     {
@@ -39,33 +37,21 @@ class User extends Authenticatable
         return $this->hasMany(ProductionOrder::class, 'created_by');
     }
 
+    public function pushSubscriptions()
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
     // ── Role helpers ──────────────────────────────────────────
 
-    public function isMasterAdmin(): bool
-    {
-        return $this->role === 'master_admin';
-    }
+    public function isMasterAdmin(): bool { return $this->role === 'master_admin'; }
+    public function isPpic(): bool        { return $this->role === 'ppic'; }
+    public function isKoor(): bool        { return $this->role === 'koor'; }
+    public function isOperator(): bool    { return $this->role === 'operator'; }
 
-    public function isPpic(): bool
-    {
-        return $this->role === 'ppic';
-    }
-
-    public function isKoor(): bool
-    {
-        return $this->role === 'koor';
-    }
-
-    // Legacy helpers untuk kompatibilitas blade yang sudah ada
-    public function isMarketing(): bool
-    {
-        return $this->isPpic() || $this->isMasterAdmin();
-    }
-
-    public function isProduksi(): bool
-    {
-        return $this->isKoor();
-    }
+    // Legacy helpers
+    public function isMarketing(): bool  { return $this->isPpic() || $this->isMasterAdmin(); }
+    public function isProduksi(): bool   { return $this->isKoor() || $this->isOperator(); }
 
     public function getRoleLabelAttribute(): string
     {
@@ -73,6 +59,7 @@ class User extends Authenticatable
             'master_admin' => 'Master Admin',
             'ppic'         => 'PPIC',
             'koor'         => 'Koordinator',
+            'operator'     => 'Operator' . ($this->nama_proses ? ' ' . $this->nama_proses : ''),
             default        => ucfirst($this->role),
         };
     }
@@ -88,5 +75,17 @@ class User extends Authenticatable
     {
         if ($this->isMasterAdmin()) return true;
         return in_array($teamId, $this->teamIds());
+    }
+
+    /**
+     * Operator hanya bisa input proses yang namanya sama dengan nama_proses mereka.
+     */
+    public function canInputProcess(ProductionProcess $process): bool
+    {
+        if ($this->isKoor()) return true; // Koor bisa semua proses di timnya
+        if ($this->isOperator()) {
+            return strtolower(trim($this->nama_proses)) === strtolower(trim($process->nama_proses));
+        }
+        return false;
     }
 }

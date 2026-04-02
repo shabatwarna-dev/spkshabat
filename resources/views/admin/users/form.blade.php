@@ -43,11 +43,28 @@
                     <label class="form-label">Role <span class="text-red-500">*</span></label>
                     <select name="role" x-model="role" class="form-input" required>
                         <option value="ppic">PPIC (buat & kelola SPK)</option>
-                        <option value="koor">Koordinator (input hasil produksi)</option>
+                        <option value="koor">Koordinator (input semua proses tim)</option>
+                        <option value="operator">Operator (input proses tertentu saja)</option>
                         <option value="master_admin">Master Admin (akses penuh)</option>
                     </select>
 
-                    {{-- Pilih tim (hanya untuk ppic & koor) --}}
+                    {{-- Nama proses khusus operator --}}
+                    <div x-show="role === 'operator'" x-cloak class="mt-3">
+                        <label class="form-label">Nama Proses yang Dihandle <span class="text-red-500">*</span></label>
+                        <select name="nama_proses" class="form-input" :required="role === 'operator'">
+                            <option value="">Pilih proses...</option>
+                            @foreach(\App\Models\ProductionProcess::defaultProcesses() as $p)
+                            <option value="{{ $p }}" {{ old('nama_proses', $user->nama_proses ?? '') === $p ? 'selected' : '' }}>
+                                {{ $p }}
+                            </option>
+                            @endforeach
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">
+                            Operator ini hanya bisa input hasil untuk proses dengan nama tersebut.
+                        </p>
+                    </div>
+
+                    {{-- Pilih tim --}}
                     <div x-show="role !== 'master_admin'" x-cloak class="mt-4">
                         <label class="form-label">Assign ke Tim</label>
                         <p class="text-xs text-gray-400 mb-2">User bisa masuk ke beberapa tim sekaligus.</p>

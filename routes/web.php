@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProductionOrderController;
 use App\Http\Controllers\ProductionProcessController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Admin\TeamController;
 
@@ -17,12 +18,18 @@ Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
 // ── Protected ─────────────────────────────────────────────────
 Route::middleware(['auth'])->group(function () {
 
-    // Dashboard — semua role
+    // Dashboard
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+
+    // Push notification subscribe/unsubscribe
+    Route::post('/notifications/subscribe',   [NotificationController::class, 'subscribe'])->name('notifications.subscribe');
+    Route::post('/notifications/unsubscribe', [NotificationController::class, 'unsubscribe'])->name('notifications.unsubscribe');
 
     // Daftar & detail SPK — semua role bisa lihat
     Route::get('/spk', [ProductionOrderController::class, 'index'])->name('orders.index');
     Route::get('/spk/riwayat', [ProductionOrderController::class, 'history'])->name('orders.history');
+    Route::get('/spk/{order}', [ProductionOrderController::class, 'show'])->name('orders.show');
+    Route::get('/spk/{order}/pdf', [ProductionOrderController::class, 'exportPdf'])->name('orders.pdf');
 
     // PPIC only — buat & kelola SPK
     Route::middleware(['role:ppic'])->group(function () {
@@ -39,12 +46,8 @@ Route::middleware(['auth'])->group(function () {
         Route::delete('/proses/{process}', [ProductionProcessController::class, 'destroy'])->name('processes.destroy');
     });
 
-    // Wildcard — setelah route statis
-    Route::get('/spk/{order}', [ProductionOrderController::class, 'show'])->name('orders.show');
-    Route::get('/spk/{order}/pdf', [ProductionOrderController::class, 'exportPdf'])->name('orders.pdf');
-
-    // Koor only — input hasil
-    Route::middleware(['role:koor'])->group(function () {
+    // Koor & Operator — input hasil produksi
+    Route::middleware(['role:koor,operator'])->group(function () {
         Route::put('/proses/{process}/produksi', [ProductionProcessController::class, 'updateProduksi'])->name('processes.updateProduksi');
     });
 

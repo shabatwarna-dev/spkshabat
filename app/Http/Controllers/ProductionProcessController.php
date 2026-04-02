@@ -2,29 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ProductionOrder;
 use App\Models\ProductionProcess;
+use App\Models\ProductionOrder;
 use App\Models\ProcessEditLog;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Carbon\Carbon;
 
 class ProductionProcessController extends Controller
 {
-    // Marketing: Add process to order
     public function store(Request $request, ProductionOrder $order)
     {
-        $this->authorizeMarketing();
-
         $validated = $request->validate([
-            'nama_proses'       => 'required|string',
-            'estimasi_selesai'  => 'nullable|date',
-            'jumlah_barang'     => 'nullable|numeric',
-            'montage'           => 'nullable|string',
-            'ukuran'            => 'nullable|string',
-            'warna'             => 'nullable|string',
-            'estimasi_hasil'    => 'nullable|numeric',
-            'satuan'            => 'nullable|string',
-            'catatan_marketing' => 'nullable|string',
+            'nama_proses'      => 'required|string|max:255',
+            'estimasi_selesai' => 'nullable|date',
+            'jumlah_barang'    => 'nullable|numeric|min:0',
+            'montage'          => 'nullable|string',
+            'ukuran'           => 'nullable|string',
+            'warna'            => 'nullable|string',
+            'estimasi_hasil'   => 'nullable|numeric|min:0',
+            'satuan'           => 'nullable|string',
+            'catatan_marketing'=> 'nullable|string',
         ]);
 
         $urutan = $order->processes()->max('urutan') + 1;
@@ -33,182 +31,165 @@ class ProductionProcessController extends Controller
         return back()->with('success', 'Proses berhasil ditambahkan.');
     }
 
-    // Marketing: Update process details (hanya field marketing, BUKAN hasil produksi)
     public function updateMarketing(Request $request, ProductionProcess $process)
     {
-        $this->authorizeMarketing();
-
         $validated = $request->validate([
-            'nama_proses'       => 'required|string',
-            'estimasi_selesai'  => 'nullable|date',
-            'jumlah_barang'     => 'nullable|numeric',
-            'montage'           => 'nullable|string',
-            'ukuran'            => 'nullable|string',
-            'warna'             => 'nullable|string',
-            'estimasi_hasil'    => 'nullable|numeric',
-            'satuan'            => 'nullable|string',
-            'catatan_marketing' => 'nullable|string',
+            'nama_proses'      => 'required|string|max:255',
+            'estimasi_selesai' => 'nullable|date_format:Y-m-d\TH:i',
+            'jumlah_barang'    => 'nullable|numeric|min:0',
+            'montage'          => 'nullable|string',
+            'ukuran'           => 'nullable|string',
+            'warna'            => 'nullable|string',
+            'estimasi_hasil'   => 'nullable|numeric|min:0',
+            'satuan'           => 'nullable|string',
+            'catatan_marketing'=> 'nullable|string',
         ]);
 
         $process->update($validated);
-
-        return back()->with('success', 'Detail proses diperbarui.');
+        return back()->with('success', 'Proses berhasil diperbarui.');
     }
 
-    // Produksi: Input/edit hasil — HANYA role produksi
+    public function updateStatus(Request $request, ProductionProcess $process)
+    {
+        $request->validate(['status' => 'required|in:pending,proses,selesai,telat']);
+        $process->update(['status' => $request->status]);
+        return back()->with('success', 'Status diperbarui.');
+    }
+
     public function updateProduksi(Request $request, ProductionProcess $process)
     {
-        // ✅ Hanya produksi yang boleh input hasil
-        if (!auth()->user()->isProduksi()) {
-            abort(403, 'Hanya admin produksi yang dapat menginput hasil produksi.');
+        $user = auth()->user();
+
+        // Validasi operator hanya bisa input proses yang sesuai namanya
+        if ($user->isOperator() && !$user->canInputProcess($process)) {
+            abort(403, 'Kamu hanya bisa input hasil untuk proses ' . $user->nama_proses . '.');
         }
 
-        $isEditMode = $process->sudahDiInput(); // sudah pernah diinput sebelumnya?
+        $isEdit = $process->sudahDiInput();
 
         $rules = [
-            'hasil_jadi'             => 'nullable|numeric',
-            'jumlah_reject'          => 'nullable|numeric',
-            'catatan_produksi'       => 'nullable|string',
-            'foto_hasil'             => 'nullable|image|max:5120',
+            'hasil_jadi'    => 'required|numeric|min:0',
+            'jumlah_reject' => 'nullable|numeric|min:0',
+            'catatan_produksi' => 'nullable|string',
+            'foto_hasil'    => 'nullable|image|max:5120',
         ];
 
-        // Tanggal: jika input pertama → otomatis hari ini (tidak bisa diubah)
-        // Jika edit → boleh ubah tapi wajib isi alasan
-        if ($isEditMode) {
-            $rules['tanggal_selesai_aktual'] = 'nullable|date';
+        if ($isEdit) {
+            $rules['tanggal_selesai_aktual'] = 'nullable|date_format:Y-m-d\TH:i';
             $rules['alasan_edit'] = 'required|string|min:10';
         }
 
-        $validated = $request->validate($rules, [
-            'alasan_edit.required' => 'Wajib isi alasan pengeditan (minimal 10 karakter).',
-            'alasan_edit.min'      => 'Alasan edit minimal 10 karakter.',
-        ]);
+        $validated = $request->validate($rules);
 
-        // Simpan nilai lama sebelum di-update (untuk log)
-        $before = [
-            'hasil_jadi'             => $process->hasil_jadi,
-            'jumlah_reject'          => $process->jumlah_reject,
-            'tanggal_selesai_aktual' => $process->tanggal_selesai_aktual,
-            'catatan_produksi'       => $process->catatan_produksi,
-            'foto_hasil'             => $process->foto_hasil,
+        // Simpan nilai lama untuk log
+        $oldValues = [
+            'hasil_jadi'            => $process->hasil_jadi,
+            'jumlah_reject'         => $process->jumlah_reject,
+            'tanggal_selesai_aktual'=> $process->tanggal_selesai_aktual?->format('d/m/Y H:i'),
+            'catatan_produksi'      => $process->catatan_produksi,
         ];
 
-        // Handle photo upload
+        // Handle foto
         $fotoPath = $process->foto_hasil;
         if ($request->hasFile('foto_hasil')) {
+            if ($fotoPath) Storage::disk('public')->delete($fotoPath);
             $fotoPath = $request->file('foto_hasil')->store('foto-hasil', 'public');
         }
 
-        // Tanggal selesai:
-        // - Input pertama: otomatis hari ini (tidak bisa dimanipulasi)
-        // - Edit: pakai nilai dari form (boleh diubah, tapi tercatat di log)
-        if ($isEditMode) {
-            $tanggalSelesai = $validated['tanggal_selesai_aktual'] ?? $process->tanggal_selesai_aktual;
+        // Set tanggal selesai
+        if ($isEdit) {
+            $tanggalSelesai = $request->tanggal_selesai_aktual
+                ? Carbon::parse($request->tanggal_selesai_aktual)
+                : $process->tanggal_selesai_aktual;
         } else {
-            $tanggalSelesai = Carbon::today()->toDateString(); // otomatis hari ini
+            $tanggalSelesai = Carbon::now();
         }
 
-        // Auto-set status
-        $status = $process->status;
-        if ($tanggalSelesai) {
-            $estimasi = $process->estimasi_selesai;
-            $status = ($estimasi && Carbon::parse($tanggalSelesai)->gt($estimasi)) ? 'telat' : 'selesai';
-        } elseif (!empty($validated['hasil_jadi'])) {
-            $status = 'proses';
+        // Update status berdasarkan estimasi
+        $status = 'selesai';
+        if ($process->estimasi_selesai && $tanggalSelesai->gt($process->estimasi_selesai)) {
+            $status = 'telat';
         }
 
-        // Bangun data update
+        // Data yang diupdate
         $updateData = [
-            'hasil_jadi'             => $validated['hasil_jadi'] ?? $process->hasil_jadi,
-            'jumlah_reject'          => $validated['jumlah_reject'] ?? 0,
-            'tanggal_selesai_aktual' => $tanggalSelesai,
-            'catatan_produksi'       => $validated['catatan_produksi'] ?? $process->catatan_produksi,
-            'foto_hasil'             => $fotoPath,
-            'status'                 => $status,
+            'hasil_jadi'            => $validated['hasil_jadi'],
+            'jumlah_reject'         => $validated['jumlah_reject'] ?? 0,
+            'catatan_produksi'      => $validated['catatan_produksi'] ?? null,
+            'foto_hasil'            => $fotoPath,
+            'tanggal_selesai_aktual'=> $tanggalSelesai,
+            'status'                => $status,
         ];
 
-        if ($isEditMode) {
-            // Tandai sudah diedit
+        if (!$isEdit) {
+            $updateData['first_input_at'] = now();
+            $updateData['input_by']       = $user->id;
+        } else {
             $updateData['is_edited']  = true;
             $updateData['edit_count'] = $process->edit_count + 1;
-
-            // Simpan log edit
-            ProcessEditLog::create([
-                'production_process_id'  => $process->id,
-                'edited_by'              => auth()->id(),
-                'hasil_jadi_before'      => $before['hasil_jadi'],
-                'jumlah_reject_before'   => $before['jumlah_reject'],
-                'tanggal_selesai_before' => $before['tanggal_selesai_aktual'],
-                'catatan_before'         => $before['catatan_produksi'],
-                'foto_before'            => $before['foto_hasil'],
-                'hasil_jadi_after'       => $updateData['hasil_jadi'],
-                'jumlah_reject_after'    => $updateData['jumlah_reject'],
-                'tanggal_selesai_after'  => $tanggalSelesai,
-                'catatan_after'          => $updateData['catatan_produksi'],
-                'foto_after'             => $fotoPath,
-                'alasan_edit'            => $validated['alasan_edit'],
-            ]);
-        } else {
-            // Input pertama: catat siapa dan kapan
-            $updateData['first_input_at'] = now();
-            $updateData['input_by']       = auth()->id();
         }
 
         $process->update($updateData);
 
-        // Cek apakah semua proses sudah selesai → update status order
+        // Simpan edit log
+        if ($isEdit) {
+            $changedFields = [];
+            $newValues = [
+                'hasil_jadi'            => $validated['hasil_jadi'],
+                'jumlah_reject'         => $validated['jumlah_reject'] ?? 0,
+                'tanggal_selesai_aktual'=> $tanggalSelesai->format('d/m/Y H:i'),
+                'catatan_produksi'      => $validated['catatan_produksi'],
+            ];
+
+            $fieldLabels = [
+                'hasil_jadi'            => 'Hasil Jadi',
+                'jumlah_reject'         => 'Jumlah Reject',
+                'tanggal_selesai_aktual'=> 'Tgl Selesai',
+                'catatan_produksi'      => 'Catatan',
+            ];
+
+            foreach ($newValues as $key => $newVal) {
+                if ((string)$oldValues[$key] !== (string)$newVal) {
+                    $changedFields[] = [
+                        'field'  => $fieldLabels[$key],
+                        'before' => $oldValues[$key] ?? '-',
+                        'after'  => $newVal ?? '-',
+                    ];
+                }
+            }
+
+            if (!empty($changedFields)) {
+                ProcessEditLog::create([
+                    'production_process_id' => $process->id,
+                    'edited_by'             => $user->id,
+                    'alasan_edit'           => $validated['alasan_edit'],
+                    'changed_fields'        => json_encode($changedFields),
+                ]);
+            }
+        }
+
+        // Auto update status order
         $order = $process->order;
-        $allDone = $order->processes()->whereNotIn('status', ['selesai', 'telat'])->doesntExist();
-        if ($allDone) {
-            $order->update(['status' => 'selesai', 'tanggal_selesai_aktual' => now()->toDateString()]);
+        $allDone = $order->processes->every(fn($p) => in_array($p->fresh()->status, ['selesai', 'telat']));
+        if ($allDone && $order->status === 'produksi') {
+            $order->update(['status' => 'selesai']);
         }
 
-        $msg = $isEditMode ? 'Hasil produksi berhasil diperbarui. Edit tercatat dalam log.' : 'Hasil produksi berhasil disimpan.';
-        return back()->with('success', $msg);
-    }
-
-    // Marketing: Change process status manually
-    public function updateStatus(Request $request, ProductionProcess $process)
-    {
-        $this->authorizeMarketing();
-
-        $validated = $request->validate([
-            'status' => 'required|in:pending,proses,selesai,telat',
-        ]);
-
-        $process->update($validated);
-
-        return back()->with('success', 'Status proses diperbarui.');
-    }
-
-    // Reorder processes
-    public function reorder(Request $request, ProductionOrder $order)
-    {
-        $this->authorizeMarketing();
-
-        $validated = $request->validate([
-            'order'   => 'required|array',
-            'order.*' => 'integer|exists:production_processes,id',
-        ]);
-
-        foreach ($validated['order'] as $i => $id) {
-            ProductionProcess::where('id', $id)->update(['urutan' => $i + 1]);
-        }
-
-        return response()->json(['success' => true]);
+        return back()->with('success', $isEdit ? 'Hasil berhasil diperbarui.' : 'Hasil produksi berhasil disimpan.');
     }
 
     public function destroy(ProductionProcess $process)
     {
-        $this->authorizeMarketing();
         $process->delete();
-        return back()->with('success', 'Proses dihapus.');
+        return back()->with('success', 'Proses berhasil dihapus.');
     }
 
-    private function authorizeMarketing()
+    public function reorder(Request $request, ProductionOrder $order)
     {
-        if (!auth()->user()->isMarketing()) {
-            abort(403, 'Hanya admin marketing yang dapat melakukan aksi ini.');
+        $request->validate(['processes' => 'required|array']);
+        foreach ($request->processes as $i => $id) {
+            ProductionProcess::where('id', $id)->update(['urutan' => $i + 1]);
         }
+        return response()->json(['status' => 'ok']);
     }
 }
