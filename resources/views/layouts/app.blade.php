@@ -301,6 +301,76 @@
     @endif
 </nav>
 
+
+{{-- ── PUSH NOTIFICATION ── --}}
+<script>
+const VAPID_PUBLIC_KEY = '{{ config("app.vapid_public_key") }}';
+
+// Konversi base64 ke Uint8Array untuk VAPID
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function registerPushNotification() {
+    // Cek support browser
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (!VAPID_PUBLIC_KEY) return;
+
+    try {
+        // Register service worker
+        const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        await navigator.serviceWorker.ready;
+
+        // Cek apakah sudah subscribe
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) return; // Sudah subscribe, skip
+
+        // Minta permission
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') return;
+
+        // Subscribe
+        const subscription = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+
+        const key  = subscription.getKey('p256dh');
+        const auth = subscription.getKey('auth');
+
+        // Kirim ke server
+        await fetch('{{ route("notifications.subscribe") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type':  'application/json',
+                'X-CSRF-TOKEN':  '{{ csrf_token() }}',
+            },
+            body: JSON.stringify({
+                endpoint:         subscription.endpoint,
+                public_key:       key  ? btoa(String.fromCharCode(...new Uint8Array(key)))  : null,
+                auth_token:       auth ? btoa(String.fromCharCode(...new Uint8Array(auth))) : null,
+                content_encoding: (PushManager.supportedContentEncodings || ['aesgcm'])[0],
+            }),
+        });
+
+        console.log('SPK Shabat: Push notification aktif.');
+
+    } catch (err) {
+        console.warn('Push notification tidak tersedia:', err.message);
+    }
+}
+
+// Jalankan setelah halaman siap
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', registerPushNotification);
+} else {
+    registerPushNotification();
+}
+</script>
+
 @stack('scripts')
 </body>
 </html>
