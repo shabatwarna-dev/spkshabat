@@ -333,7 +333,7 @@
                     @endif
 
                     {{-- ── INPUT HASIL (hanya Admin Produksi) ── --}}
-                    @if(auth()->user()->isKoor())
+                    @if(auth()->user()->isProduksi())
 
                     <div class="border-t border-gray-100 p-4">
                         <div x-show="!editMode">

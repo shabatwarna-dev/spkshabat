@@ -47,20 +47,27 @@ class ProductionOrderController extends Controller
     {
         $user  = auth()->user();
         $teams = Team::whereIn('id', $user->teamIds())
-                     ->where('is_active', true)
-                     ->get();
+                    ->where('is_active', true)
+                    ->get();
 
         if ($teams->isEmpty()) {
             return redirect()->route('orders.index')
-                             ->with('error', 'Kamu belum tergabung dalam tim manapun. Hubungi Master Admin.');
+                            ->with('error', 'Kamu belum tergabung dalam tim manapun.');
         }
 
         $defaultProcesses = ProductionProcess::defaultProcesses();
+        $nextNomor = ProductionOrder::generateNomorSPK($teams->first(), 'general');
 
-        // Auto-generate nomor SPK untuk tim pertama (bisa berubah via JS)
-        $nextNomor = ProductionOrder::generateNomorSPK($teams->first());
+        // Generate nomor untuk semua kombinasi tim + tipe
+        $teamNomors = [];
+        foreach ($teams as $team) {
+            $teamNomors[$team->id] = [
+                'general'   => ProductionOrder::generateNomorSPK($team, 'general'),
+                'corporate' => ProductionOrder::generateNomorSPK($team, 'corporate'),
+            ];
+        }
 
-        return view('orders.create', compact('teams', 'defaultProcesses', 'nextNomor'));
+        return view('orders.create', compact('teams', 'defaultProcesses', 'nextNomor', 'teamNomors'));
     }
 
     public function store(Request $request)
@@ -69,6 +76,7 @@ class ProductionOrderController extends Controller
 
         $validated = $request->validate([
             'team_id'                 => 'required|exists:teams,id',
+            'tipe'                    => 'required|in:general,corporate',
             'nomor_spk'               => 'required|unique:production_orders',
             'tanggal_pesan'           => 'required|date',
             'tanggal_produksi'        => 'nullable|date',
@@ -106,6 +114,7 @@ class ProductionOrderController extends Controller
                 'nama_barang'             => $validated['nama_barang'],
                 'keterangan'              => $validated['keterangan'],
                 'status'                  => 'produksi',
+                'tipe'                    => $validated['tipe'],
                 'created_by'              => $user->id,
             ]);
 
