@@ -28,8 +28,6 @@ Route::middleware(['auth'])->group(function () {
     // Daftar & detail SPK — semua role bisa lihat
     Route::get('/spk', [ProductionOrderController::class, 'index'])->name('orders.index');
     Route::get('/spk/riwayat', [ProductionOrderController::class, 'history'])->name('orders.history');
-    Route::get('/spk/{order}', [ProductionOrderController::class, 'show'])->name('orders.show');
-    Route::get('/spk/{order}/pdf', [ProductionOrderController::class, 'exportPdf'])->name('orders.pdf');
 
     // PPIC only — buat & kelola SPK
     Route::middleware(['role:ppic'])->group(function () {
@@ -45,6 +43,10 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/spk/{order}/proses/reorder', [ProductionProcessController::class, 'reorder'])->name('processes.reorder');
         Route::delete('/proses/{process}', [ProductionProcessController::class, 'destroy'])->name('processes.destroy');
     });
+
+    // Daftar & detail SPK — semua role bisa lihat
+    Route::get('/spk/{order}', [ProductionOrderController::class, 'show'])->name('orders.show');
+    Route::get('/spk/{order}/pdf', [ProductionOrderController::class, 'exportPdf'])->name('orders.pdf');
 
     // Koor & Operator — input hasil produksi
     Route::middleware(['role:koor,operator'])->group(function () {
