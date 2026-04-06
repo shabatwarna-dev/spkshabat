@@ -9,9 +9,6 @@ use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
-    /**
-     * Subscribe user ke push notification.
-     */
     public function subscribe(Request $request)
     {
         $request->validate([
@@ -21,10 +18,7 @@ class NotificationController extends Controller
         ]);
 
         PushSubscription::updateOrCreate(
-            [
-                'user_id'  => auth()->id(),
-                'endpoint' => $request->endpoint,
-            ],
+            ['user_id' => auth()->id(), 'endpoint' => $request->endpoint],
             [
                 'public_key'       => $request->public_key,
                 'auth_token'       => $request->auth_token,
@@ -35,9 +29,6 @@ class NotificationController extends Controller
         return response()->json(['status' => 'subscribed']);
     }
 
-    /**
-     * Unsubscribe user dari push notification.
-     */
     public function unsubscribe(Request $request)
     {
         PushSubscription::where('user_id', auth()->id())
@@ -47,19 +38,26 @@ class NotificationController extends Controller
         return response()->json(['status' => 'unsubscribed']);
     }
 
-    /**
-     * Kirim push notification ke user tertentu atau semua user di tim.
-     * Dipanggil dari event/observer, bukan langsung dari request.
-     */
     public static function sendToUser(User $user, string $title, string $body, string $url = '/'): void
     {
         $subscriptions = $user->pushSubscriptions;
-        if ($subscriptions->isEmpty()) return;
+
+        \Log::info('[PUSH] sendToUser', ['user' => $user->name, 'subs' => $subscriptions->count()]);
+
+        if ($subscriptions->isEmpty()) {
+            \Log::warning('[PUSH] No subscriptions', ['user' => $user->name]);
+            return;
+        }
 
         $vapidPublicKey  = config('app.vapid_public_key');
         $vapidPrivateKey = config('app.vapid_private_key');
 
-        if (!$vapidPublicKey || !$vapidPrivateKey) return;
+        \Log::info('[PUSH] VAPID', ['has_pub' => !empty($vapidPublicKey), 'has_priv' => !empty($vapidPrivateKey)]);
+
+        if (!$vapidPublicKey || !$vapidPrivateKey) {
+            \Log::error('[PUSH] VAPID keys missing');
+            return;
+        }
 
         $payload = json_encode([
             'title' => $title,
@@ -81,31 +79,40 @@ class NotificationController extends Controller
 
                 $webPush = new \Minishlink\WebPush\WebPush($auth);
                 $subscription = \Minishlink\WebPush\Subscription::create([
-                    'endpoint'        => $sub->endpoint,
-                    'keys' => [
+                    'endpoint' => $sub->endpoint,
+                    'keys'     => [
                         'p256dh' => $sub->public_key,
                         'auth'   => $sub->auth_token,
                     ],
                 ]);
 
                 $webPush->queueNotification($subscription, $payload);
-                $webPush->flush();
+                $reports = $webPush->flush();
+
+                foreach ($reports as $report) {
+                    if ($report->isSuccess()) {
+                        \Log::info('[PUSH] Success', ['endpoint' => substr($sub->endpoint, 0, 50)]);
+                    } else {
+                        \Log::error('[PUSH] Failed', [
+                            'reason' => $report->getReason(),
+                            'status' => $report->getResponse()?->getStatusCode(),
+                        ]);
+                        if (in_array($report->getResponse()?->getStatusCode(), [404, 410])) {
+                            $sub->delete();
+                        }
+                    }
+                }
 
             } catch (\Exception $e) {
-                // Kalau endpoint tidak valid, hapus subscription
-                if (str_contains($e->getMessage(), '410') || str_contains($e->getMessage(), '404')) {
-                    $sub->delete();
-                }
+                \Log::error('[PUSH] Exception', ['error' => $e->getMessage()]);
             }
         }
     }
 
-    /**
-     * Kirim notif ke semua user di tim tertentu.
-     */
     public static function sendToTeam(int $teamId, string $title, string $body, string $url = '/'): void
     {
         $users = User::whereHas('teams', fn($q) => $q->where('teams.id', $teamId))->get();
+        \Log::info('[PUSH] sendToTeam', ['team_id' => $teamId, 'users' => $users->count()]);
         foreach ($users as $user) {
             static::sendToUser($user, $title, $body, $url);
         }
