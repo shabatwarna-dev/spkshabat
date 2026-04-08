@@ -117,8 +117,8 @@
                             </div>
                             <div>
                                 <label class="form-label">Est. Selesai</label>
-                                <input type="date" name="estimasi_selesai"
-                                       value="{{ $proc->estimasi_selesai?->format('Y-m-d') }}" class="form-input text-xs">
+                                <input type="datetime-local" name="estimasi_selesai"
+                                       value="{{ $proc->estimasi_selesai?->format('Y-m-d\TH:i') }}" class="form-input text-xs">
                             </div>
                             <div>
                                 <label class="form-label">Jumlah Barang</label>

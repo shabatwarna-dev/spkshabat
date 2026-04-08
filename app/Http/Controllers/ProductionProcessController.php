@@ -158,14 +158,30 @@ class ProductionProcessController extends Controller
                 }
             }
 
-            if (!empty($changedFields)) {
-                ProcessEditLog::create([
-                    'production_process_id' => $process->id,
-                    'edited_by'             => $user->id,
-                    'alasan_edit'           => $validated['alasan_edit'],
-                    'changed_fields'        => json_encode($changedFields),
-                ]);
-            }
+            // Simpan edit log
+        if ($isEdit) {
+            ProcessEditLog::create([
+                'production_process_id' => $process->id,
+                'edited_by'             => $user->id,
+                'alasan_edit'           => $validated['alasan_edit'],
+
+                // Before (nilai lama, diambil SEBELUM update)
+                'hasil_jadi_before'       => $oldValues['hasil_jadi'],
+                'jumlah_reject_before'    => $oldValues['jumlah_reject'],
+                'tanggal_selesai_before'  => $oldValues['tanggal_selesai_aktual']
+                                                ? Carbon::createFromFormat('d/m/Y H:i', $oldValues['tanggal_selesai_aktual'])
+                                                : null,
+                'catatan_before'          => $oldValues['catatan_produksi'],
+                'foto_before'             => $process->foto_hasil,
+
+                // After (nilai baru)
+                'hasil_jadi_after'        => $validated['hasil_jadi'],
+                'jumlah_reject_after'     => $validated['jumlah_reject'] ?? 0,
+                'tanggal_selesai_after'   => $tanggalSelesai,
+                'catatan_after'           => $validated['catatan_produksi'] ?? null,
+                'foto_after'              => $fotoPath,
+            ]);
+        }
         }
 
         // Auto update status order

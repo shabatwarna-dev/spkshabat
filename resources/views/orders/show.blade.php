@@ -382,9 +382,9 @@
                                     {{-- Edit mode: tanggal bisa diubah tapi maks hari ini --}}
                                     <div>
                                         <label class="form-label">Tgl Selesai Aktual</label>
-                                        <input type="date" name="tanggal_selesai_aktual"
-                                               value="{{ $process->tanggal_selesai_aktual?->format('Y-m-d') }}"
-                                               class="form-input" max="{{ date('Y-m-d') }}">
+                                        <input type="datetime-local" name="tanggal_selesai_aktual"
+                                               value="{{ $process->tanggal_selesai_aktual?->format('Y-m-d\TH:i') }}"
+                                               class="form-input" max="{{ date('Y-m-d\TH:i') }}">
                                     </div>
                                     @else
                                     {{-- Input pertama: tanggal otomatis hari ini, tidak bisa dimanipulasi --}}
