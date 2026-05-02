@@ -60,7 +60,7 @@ Route::middleware(['auth'])->group(function () {
 
     // ── Master Admin only ──────────────────────────────────────
     Route::middleware(['role:master_admin'])->prefix('admin')->name('admin.')->group(function () {
-        Route::get('/admin/laporan', [ReportController::class, 'adminIndex'])->name('admin.reports.index');
+        Route::get('/laporan', [ReportController::class, 'adminIndex'])->name('reports.index');
 
         Route::get('/users', [UserController::class, 'index'])->name('users.index');
         Route::get('/users/buat', [UserController::class, 'create'])->name('users.create');
